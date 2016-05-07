@@ -1,0 +1,248 @@
+---
+title: "STA 613 Report Markdown Draft"
+author: "Shijia Bian"
+date: "May 3, 2016"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+Load the cleaned up date set `dummy.freq.Table.Rdata`, and write down the marks for the breed. 
+
+dummy.freq.Table.Rdata has the column be the allele frequency for each of the species, the breed mark is the breed specification for each of the species.
+
+```{r}
+load("~/Dropbox/Duke Statistics Courses/Spring 2016 Duke Course/STA 613 COMSCI BIO/Final Project/Data/dummy.freq.Table.Rdata")
+
+breed = c("wildCanids", "wildCanids", 
+          "wildCanids", "wildCanids",
+          "wildCanids", "wildCanids",
+          "acientBreeds", "acientBreeds",
+          "acientBreeds", "acientBreeds",
+          "acientBreeds", "acientBreeds",
+          "acientBreeds", "acientBreeds", 
+          "acientBreeds", "acientBreeds",
+          "acientBreeds", "acientBreeds",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "spitz", "spitz",
+          "toy", "toy", 
+          "toy", "toy", 
+          "herding", "herding",
+          "herding", "herding",
+          "herding", "herding",
+          "herding", "herding",
+          "herding", "herding",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff",
+          "mastiff", "mastiff")
+
+
+breadMark = c()
+for (i in 1:38) {
+  breadMark.du = breed[2*i]
+  breadMark = c(breadMark, breadMark.du)
+}
+```
+
+
+calculate the population mean for each of the population, and the overall mean
+```{r}
+wildCanidsMean = apply(dummy.freq.Table[,breadMark=="wildCanids"], 1, mean)
+acientBreedsMean = apply(dummy.freq.Table[,breadMark=="acientBreeds"], 1, mean)
+spitzMean = apply(dummy.freq.Table[,breadMark=="spitz"], 1, mean)
+toyMean = apply(dummy.freq.Table[,breadMark=="toy"], 1, mean)
+herdingMean = apply(dummy.freq.Table[,breadMark=="herding"], 1, mean)
+mastiffMean = apply(dummy.freq.Table[,breadMark=="mastiff"], 1, mean)
+overallMean = apply(dummy.freq.Table, 1, mean)
+```
+
+Calculate the covariance matrix 
+```{r}
+popMean = cbind(wildCanidsMean, acientBreedsMean, spitzMean, toyMean, herdingMean, mastiffMean)
+dim(popMean) # 38312     6
+popMean.matrix = as.matrix(popMean)
+cov(popMean.matrix)
+```
+
+```{r}
+library("mmod")
+data("nancycats")
+nancycats
+
+#install.packages("poppr")
+library("poppr")
+
+#install.packages("ape")
+library("ape") # To visualize the tree using the "nj" function
+
+#install.packages("magrittr")
+library("magrittr")
+data(microbov)
+set.seed(10)
+ten_samples <- sample(nInd(microbov), 10)
+mic10       <- microbov[ten_samples]
+(micdist    <- provesti.dist(mic10))
+```
+
+```{r}
+allelFeq = as.matrix(dummy.freq.Table)
+allelFeq.t = t(allelFeq)
+allelFeq.tt=na.omit(allelFeq.t)
+
+allelFeq.ttP = allelFeq.tt
+clusters <- hclust(dist(allelFeq.ttP), method = 'average')
+plot(clusters)
+
+```
+
+composite liklihood
+```{r}
+# https://cran.r-project.org/web/packages/CompRandFld/CompRandFld.pdf
+# page 11
+#install.packages("CompRandFld")
+library(CompRandFld)
+
+#install.packages("RandomFields")
+library(RandomFields)
+
+# install.packages("scatterplot3d")
+library(scatterplot3d)
+set.seed(31231)
+# Set the coordinates of the points:
+x <- runif(100, 0, 10)
+y <- runif(100, 0, 10)
+coords<-cbind(popMean[,1],popMean[,2])[1:1000,]
+################################################################
+###
+### Example 1. Plot of covariance and variogram functions
+### estimated from a Gaussian random field with exponent
+### correlation. One spatial replication is simulated.
+###
+###
+###############################################################
+# Set the model's parameters:
+corrmodel <- "exponential"
+mean <- 0
+sill <- 1
+nugget <- 0
+scale <- 2
+# Simulation of the Gaussian random field:
+data <- RFsim(coordx=coords, corrmodel=corrmodel, param=list(mean=mean,
+sill=sill, nugget=nugget, scale=scale))$data
+# Maximum composite-likelihood fitting of the Gaussian random field:
+
+start<-list(scale=scale,sill=sill,mean=mean(data))
+fixed<-list(nugget=nugget)
+# Maximum composite-likelihood fitting of the random field:
+fit <- FitComposite(data, coordx=coords, corrmodel=corrmodel,likelihood="Marginal",
+type="Pairwise",start=start,fixed=fixed,maxdist=6)
+# Results:
+print(fit)
+# Empirical estimation of the variogram:
+vario <- EVariogram(data, popMean[,1][1:1000], popMean[1:1000])
+# Plot of covariance and variogram functions:
+par(mfrow=c(1,2))
+Covariogram(fit, show.cov=TRUE, show.range=TRUE,
+show.vario=TRUE, vario=vario,pch=20)
+
+
+################################################################
+##
+### Example 2. Plot of covariance and extremal coefficient
+### functions estimated from a max-stable random field with
+### exponential correlation. n idd spatial replications are
+### simulated.
+###
+###############################################################
+set.seed(1156)
+# Simulation of the max-stable random field:
+data <- RFsim(coordx=coords, corrmodel=corrmodel, model="ExtGauss", replicates=20,
+param=list(mean=mean,sill=sill,nugget=nugget,scale=scale))$data
+start=list(sill=sill,scale=scale)
+# Maximum composite-likelihood fitting of the max-stable random field:
+fit <- FitComposite(data, coordx=coords, corrmodel=corrmodel, model='ExtGauss',
+replicates=20, varest=TRUE, vartype='Sampling',
+margins="Frechet",start=start)
+```
+
+
+The Block Design
+
+Equation 20, estimate G
+
+```{r}
+dim(dummy.freq.Table)
+#### divide the table into 8 blocks
+popMean = cbind(wildCanidsMean, acientBreedsMean, spitzMean, toyMean, herdingMean, mastiffMean)
+dim(popMean) # 38312     6
+popMean.matrix = as.matrix(popMean)
+cov(popMean.matrix)
+```
+
+Equation 24, estimate W hat:
+
+```{r}
+w_ij = cov(popMean.matrix)
+col_mean = apply(popMean.matrix, 1, mean)
+G_ij = t(popMean.matrix - col_mean)  %*% (popMean.matrix - col_mean)
+```
+
+Equation 27, estimate sigma ij hat:
+
+Divide the popMean.matrix into 4 blocks
+```{r}
+dim(popMean.matrix)
+seq(1, 38312, length.out = 5)
+
+popMean.matrix1 = popMean.matrix[1:9578, ]
+popMean.matrix2 = popMean.matrix[9579:19156, ]
+popMean.matrix3 = popMean.matrix[19157:28734, ]
+popMean.matrix4 = popMean.matrix[28735:38312, ]
+
+block1 = cov(popMean.matrix1)
+block2 = cov(popMean.matrix2)
+block3 = cov(popMean.matrix3)
+block4 = cov(popMean.matrix4)
+
+w_hat_ij = (block1+block2+block3+block4)/4
+
+sigma_ij_square = ((block1-w_hat)^2+(block2-w_hat)^2+(block3-w_hat)^2+(block4-w_hat)^2)/(4*3)
+```
+
+Eq 28
+```{r}
+overall_Exp = mean(w_hat_ij)
+w_ij = matrix(overall_Exp, 6, 6)
+temp = 1
+
+for (i in 1:dim(w_ij)[1]) {
+  for (j in 1:dim(w_ij)[2]) {
+    stor = pnorm(w_hat_ij[i,j], w_ij[i,j], sqrt(sigma_ij_square[i,j]))
+    if (stor != 0) {
+      temp = temp * stor
+      print(temp)
+    }  
+  }
+}
+temp
+```
+
